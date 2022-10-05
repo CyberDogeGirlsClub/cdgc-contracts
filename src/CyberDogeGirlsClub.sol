@@ -31,26 +31,39 @@ contract CyberDogeGirlsClub is
     uint256 public reservedSupply;
     uint256 public unreservedSupply;
     uint256 public mintStartTimestamp;
+    uint256 public totalMembers;
+    uint96 public inviterFeeBPS;
     string public baseURI;
 
     Counters.Counter private _tokenIdCounter;
+    mapping(address => uint256) private _invites;
+    mapping(address => uint256) private _membershipTokenIds;
+    mapping(uint256 => bool) private _activeTokenIds;
 
     error MaxSupplyReached();
     error MintPriceNotPaid();
     error PriceOracleNotSet();
     error MintingNotStarted();
-    error MembershipBadgeAlreadyActive();
-    error MembershipBadgeNotActive();
+    error MembershipAlreadyActive();
+    error MembershipNotActive();
+    error MembershipActiveForTokenId();
     error NotTheOwnerOfTheToken();
+    error InviterIsNotAMember();
+    error InviterIsTheSender();
+    error NonExistentTokenId();
     error RoyaltyTooHigh();
     error TransferFailed(address recipient);
-    error InvalidAmount(uint256 amount);
+    error InvalidAmount();
 
     constructor() ERC721("CyberDoge Girls Club", "CDGC") {
         priceOracle = new CDGCPriceOracle();
+        inviterFeeBPS = 2500;
         baseURI = "https://cyberdogegirls.club/api/v1/collections/cdgc/metadata/";
         _tokenIdCounter.increment(); // start at 1
         super._setDefaultRoyalty(TREASURY, 500);
+
+        reservedMint(msg.sender, 1);
+        activateMembership(1);
     }
 
     function _baseURI() internal view override returns (string memory) {
@@ -97,13 +110,62 @@ contract CyberDogeGirlsClub is
         }
     }
 
-    function publicMint(uint256 amount) public payable whenNotPaused {
+    function isMembershipActiveForTokenId(uint256 tokenId)
+        public
+        view
+        returns (bool)
+    {
+        if (!_exists(tokenId)) {
+            revert NonExistentTokenId();
+        }
+
+        return _activeTokenIds[tokenId];
+    }
+
+    function hasActiveMembership(address account) public view returns (bool) {
+        return _membershipTokenIds[account] != 0;
+    }
+
+    function activateMembership(uint256 tokenId) public {
+        if (hasActiveMembership(msg.sender)) {
+            revert MembershipAlreadyActive();
+        }
+
+        if (ownerOf(tokenId) != msg.sender) {
+            revert NotTheOwnerOfTheToken();
+        }
+
+        totalMembers += 1;
+        _activeTokenIds[tokenId] = true;
+        _membershipTokenIds[msg.sender] = tokenId;
+    }
+
+    function switchActiveMembership(uint256 tokenId) public {
+        if (ownerOf(tokenId) != msg.sender) {
+            revert NotTheOwnerOfTheToken();
+        }
+
+        if (!hasActiveMembership(msg.sender)) {
+            revert MembershipNotActive();
+        }
+
+        uint256 oldTokenId = _membershipTokenIds[msg.sender];
+        _activeTokenIds[oldTokenId] = false;
+        _activeTokenIds[tokenId] = true;
+        _membershipTokenIds[msg.sender] = tokenId;
+    }
+
+    function publicMint(uint256 amount, address inviter)
+        public
+        payable
+        whenNotPaused
+    {
         if (block.timestamp < mintStartTimestamp) {
             revert MintingNotStarted();
         }
 
         if (amount == 0) {
-            revert InvalidAmount(amount);
+            revert InvalidAmount();
         }
 
         if (address(priceOracle) == address(0)) {
@@ -123,15 +185,32 @@ contract CyberDogeGirlsClub is
             revert MaxSupplyReached();
         }
 
+        if (inviter == msg.sender) {
+            revert InviterIsTheSender();
+        }
+
+        if (!hasActiveMembership(inviter)) {
+            revert InviterIsNotAMember();
+        }
+
+        _invites[inviter] += amount;
         unreservedSupply += amount;
         for (uint256 i = 0; i < amount; i++) {
             _mint(msg.sender);
         }
 
+        uint256 inviterFee = (mintPriceTotal * inviterFeeBPS) / 1e4;
+        uint256 treasuryFee = mintPriceTotal - inviterFee;
         uint256 excessPayment = msg.value - mintPriceTotal;
-        (bool success, ) = TREASURY.call{value: mintPriceTotal}("");
+
+        (bool success, ) = TREASURY.call{value: treasuryFee}("");
         if (!success) {
             revert TransferFailed(TREASURY);
+        }
+
+        (success, ) = inviter.call{value: inviterFee}("");
+        if (!success) {
+            revert TransferFailed(inviter);
         }
 
         if (excessPayment == 0) {
@@ -144,6 +223,10 @@ contract CyberDogeGirlsClub is
         }
     }
 
+    function inviteCount(address account) public view returns (uint256) {
+        return _invites[account];
+    }
+
     function setPriceOracle(PriceOracle _priceOracle) public onlyOwner {
         priceOracle = _priceOracle;
     }
@@ -153,6 +236,10 @@ contract CyberDogeGirlsClub is
         onlyOwner
     {
         mintStartTimestamp = _mintStartTimestamp;
+    }
+
+    function setInviterFeeBPS(uint96 _inviterFeeBPS) public onlyOwner {
+        inviterFeeBPS = _inviterFeeBPS;
     }
 
     function setBaseURI(string memory baseURI_) public onlyOwner {
@@ -176,6 +263,18 @@ contract CyberDogeGirlsClub is
         if (!success) {
             revert TransferFailed(TREASURY);
         }
+    }
+
+    function _transfer(
+        address from,
+        address to,
+        uint256 tokenId
+    ) internal override {
+        if (isMembershipActiveForTokenId(tokenId)) {
+            revert MembershipActiveForTokenId();
+        }
+
+        super._transfer(from, to, tokenId);
     }
 
     function _beforeTokenTransfer(
