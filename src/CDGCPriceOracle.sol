@@ -14,6 +14,14 @@ contract CDGCPriceOracle is PriceOracle, Ownable {
     error CollectionAlreadyEligible();
     error CollectionNotEligible();
 
+    event BasePriceChanged(uint256 previousBasePrice, uint256 newBasePrice);
+    event DiscountPercentageBPSChanged(
+        uint16[] previousDiscountPercentageBPS,
+        uint16[] newDiscountPercentageBPS
+    );
+    event EligibleNFTCollectionAdded(IERC721 nftCollection);
+    event EligibleNFTCollectionRemoved(IERC721 nftCollection);
+
     constructor() {
         _basePrice = 99 ether;
 
@@ -99,6 +107,7 @@ contract CDGCPriceOracle is PriceOracle, Ownable {
         }
 
         nftCollectionsEligibleForDiscount.push(collection);
+        emit EligibleNFTCollectionAdded(collection);
     }
 
     function removeEligibleCollection(IERC721 collection) public onlyOwner {
@@ -110,6 +119,7 @@ contract CDGCPriceOracle is PriceOracle, Ownable {
                     nftCollectionsEligibleForDiscount.length - 1
                 ];
                 nftCollectionsEligibleForDiscount.pop();
+                emit EligibleNFTCollectionRemoved(collection);
                 return;
             }
         }
@@ -122,17 +132,25 @@ contract CDGCPriceOracle is PriceOracle, Ownable {
     }
 
     function setBasePrice(uint256 basePrice_) public onlyOwner {
+        uint256 previousBasePrice = _basePrice;
         _basePrice = basePrice_;
+        emit BasePriceChanged(previousBasePrice, _basePrice);
     }
 
     function getBasePrice() public view override returns (uint256) {
         return _basePrice;
     }
 
-    function setDiscountPercentageBPS(
-        uint16[] memory _discountBasePointsBreakdown
-    ) public onlyOwner {
-        discountPercentageBPS = _discountBasePointsBreakdown;
+    function setDiscountPercentageBPS(uint16[] memory _discountBasePoints)
+        public
+        onlyOwner
+    {
+        uint16[] memory previousDiscountPercentageBPS = discountPercentageBPS;
+        discountPercentageBPS = _discountBasePoints;
+        emit DiscountPercentageBPSChanged(
+            previousDiscountPercentageBPS,
+            discountPercentageBPS
+        );
     }
 
     function getDiscountPercentageBPS() public view returns (uint16[] memory) {

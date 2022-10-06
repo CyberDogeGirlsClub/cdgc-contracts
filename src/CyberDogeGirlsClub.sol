@@ -56,6 +56,31 @@ contract CyberDogeGirlsClub is
     error TransferFailed(address recipient);
     error InvalidAmount();
 
+    event MintStartTimestampChanged(
+        uint256 previousMintStartTimestamp,
+        uint256 newMintStartTimestamp
+    );
+    event PriceOracleChanged(
+        PriceOracle previousPriceOracle,
+        PriceOracle newPriceOracle
+    );
+    event InviterFeeBPSChanged(
+        uint96 previousInviterFeeBPS,
+        uint96 newInviterFeeBPS
+    );
+    event BaseURIChanged(string previousBaseURI, string newBaseURI);
+    event MembershipActivated(address member, uint256 tokenId);
+    event MembershipTokenIdSwitched(
+        address member,
+        uint256 previousTokenId,
+        uint256 newTokenId
+    );
+    event NewPublicMint(
+        address indexed minter,
+        address indexed inviter,
+        uint256 amount
+    );
+
     constructor() ERC721("CyberDoge Girls Club", "CDGC") {
         priceOracle = new CDGCPriceOracle();
         inviterFeeBPS = 2500;
@@ -139,6 +164,7 @@ contract CyberDogeGirlsClub is
         totalMembers += 1;
         _activeTokenIds[tokenId] = true;
         _membershipTokenIds[msg.sender] = tokenId;
+        emit MembershipActivated(msg.sender, tokenId);
     }
 
     function switchActiveMembership(uint256 tokenId) public {
@@ -154,6 +180,7 @@ contract CyberDogeGirlsClub is
         _activeTokenIds[oldTokenId] = false;
         _activeTokenIds[tokenId] = true;
         _membershipTokenIds[msg.sender] = tokenId;
+        emit MembershipTokenIdSwitched(msg.sender, oldTokenId, tokenId);
     }
 
     function publicMint(uint256 amount, address inviter)
@@ -199,6 +226,7 @@ contract CyberDogeGirlsClub is
         for (uint256 i = 0; i < amount; i++) {
             _mint(msg.sender);
         }
+        emit NewPublicMint(msg.sender, inviter, amount);
 
         uint256 inviterFee = (mintPriceTotal * inviterFeeBPS) / 1e4;
         uint256 treasuryFee = mintPriceTotal - inviterFee;
@@ -248,14 +276,21 @@ contract CyberDogeGirlsClub is
     }
 
     function setPriceOracle(PriceOracle _priceOracle) public onlyOwner {
+        PriceOracle previousPriceOracle = priceOracle;
         priceOracle = _priceOracle;
+        emit PriceOracleChanged(previousPriceOracle, _priceOracle);
     }
 
     function setMintStartTimestamp(uint256 _mintStartTimestamp)
         public
         onlyOwner
     {
+        uint256 previousMintStartTimestamp = mintStartTimestamp;
         mintStartTimestamp = _mintStartTimestamp;
+        emit MintStartTimestampChanged(
+            previousMintStartTimestamp,
+            mintStartTimestamp
+        );
     }
 
     function setInviterFeeBPS(uint96 _inviterFeeBPS) public onlyOwner {
@@ -263,11 +298,15 @@ contract CyberDogeGirlsClub is
             revert InvalidInviterFeeBPS();
         }
 
+        uint96 previousInviterFeeBPS = inviterFeeBPS;
         inviterFeeBPS = _inviterFeeBPS;
+        emit InviterFeeBPSChanged(previousInviterFeeBPS, inviterFeeBPS);
     }
 
     function setBaseURI(string memory baseURI_) public onlyOwner {
+        string memory previousBaseURI = baseURI;
         baseURI = baseURI_;
+        emit BaseURIChanged(previousBaseURI, baseURI_);
     }
 
     function setDefaultRoyalty(address recipient, uint96 royaltyBps)
