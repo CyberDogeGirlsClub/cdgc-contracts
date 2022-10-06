@@ -227,6 +227,25 @@ contract CyberDogeGirlsClub is
         return _invites[account];
     }
 
+    function tokensOfOwner(address owner)
+        external
+        view
+        returns (uint256[] memory)
+    {
+        uint256 tokenCount = balanceOf(owner);
+        if (tokenCount == 0) {
+            return new uint256[](0);
+        }
+
+        uint256[] memory tokens = new uint256[](tokenCount);
+
+        for (uint256 i = 0; i < tokenCount; i++) {
+            tokens[i] = tokenOfOwnerByIndex(owner, i);
+        }
+
+        return tokens;
+    }
+
     function setPriceOracle(PriceOracle _priceOracle) public onlyOwner {
         priceOracle = _priceOracle;
     }

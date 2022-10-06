@@ -169,6 +169,31 @@ contract CyberDogeGirlsClubTest is Test {
         assertEq(nft.inviteCount(bob), 0);
     }
 
+    function testTokensOfOwner() public {
+        assertEq(nft.tokensOfOwner(address(this)).length, 1);
+        assertEq(nft.tokensOfOwner(address(this))[0], 1);
+
+        vm.deal(alice, baseMintPrice);
+        vm.prank(alice);
+        nft.publicMint{value: baseMintPrice}(1, address(this));
+        assertEq(nft.tokensOfOwner(alice).length, 1);
+        assertEq(nft.tokensOfOwner(alice)[0], 2);
+
+        vm.deal(alice, baseMintPrice);
+        vm.prank(alice);
+        nft.publicMint{value: baseMintPrice}(1, address(this));
+        assertEq(nft.tokensOfOwner(alice).length, 2);
+        assertEq(nft.tokensOfOwner(alice)[0], 2);
+        assertEq(nft.tokensOfOwner(alice)[1], 3);
+
+        vm.prank(alice);
+        nft.transferFrom(alice, bob, 2);
+        assertEq(nft.tokensOfOwner(alice).length, 1);
+        assertEq(nft.tokensOfOwner(alice)[0], 3);
+        assertEq(nft.tokensOfOwner(bob).length, 1);
+        assertEq(nft.tokensOfOwner(bob)[0], 2);
+    }
+
     function testTotalMembers() public {
         assertEq(nft.totalMembers(), 1);
 
