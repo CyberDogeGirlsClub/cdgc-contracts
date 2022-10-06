@@ -48,6 +48,7 @@ contract CyberDogeGirlsClub is
     error MembershipNotActive();
     error MembershipActiveForTokenId();
     error NotTheOwnerOfTheToken();
+    error InvalidInviterFeeBPS();
     error InviterIsNotAMember();
     error InviterIsTheSender();
     error NonExistentTokenId();
@@ -258,6 +259,10 @@ contract CyberDogeGirlsClub is
     }
 
     function setInviterFeeBPS(uint96 _inviterFeeBPS) public onlyOwner {
+        if (_inviterFeeBPS > 1e4) {
+            revert InvalidInviterFeeBPS();
+        }
+
         inviterFeeBPS = _inviterFeeBPS;
     }
 
